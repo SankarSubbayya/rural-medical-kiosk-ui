@@ -31,7 +31,7 @@ A FastAPI backend for the Rural Medical AI Kiosk, providing dermatological guida
 │  │ (Whisper/gTTS)  │  │  (Qdrant)       │           │           │
 │  │                 │  │                 │           │           │
 │  │ - STT (5+ lang) │  │ - SCIN database │           │           │
-│  │ - TTS output    │  │ - SigLIP-2 embed│           │           │
+│  │ - TTS output    │  │ - SigLIP embed  │           │           │
 │  │ - Lang detect   │  │ - Similar cases │           │           │
 │  └─────────────────┘  └─────────────────┘           │           │
 │                                                      │           │
@@ -52,7 +52,7 @@ A FastAPI backend for the Rural Medical AI Kiosk, providing dermatological guida
 | **gpt-oss:20b** (Ollama) | Conversational AI, SOAP flow, medical info filtering | Throughout consultation |
 | **MedGemma** (Ollama) | Medical image analysis, condition suggestion | When patient shares skin image |
 | **llava** (Ollama) | Fallback vision model | If MedGemma unavailable |
-| **SigLIP-2** | Image embeddings for Qdrant RAG retrieval | Image similarity search |
+| **SigLIP** (HuggingFace) | 768-dim image embeddings for Qdrant RAG | Similarity search in 6,500+ SCIN images |
 | **Whisper** (local) | Speech-to-text (5+ languages) | Voice input processing |
 | **gTTS** | Text-to-speech (multilingual) | Voice output |
 
@@ -97,7 +97,11 @@ backend/
 │       └── report.py         # Report generation
 │
 └── scripts/
-    └── ingest_scin.py     # SCIN database ingestion
+    ├── ingest_scin.py              # Legacy SCIN ingestion
+    ├── embed_scin_siglip.py        # SigLIP embedding for SCIN
+    ├── test_siglip_embedding.py    # Test embedding pipeline
+    ├── check_embedding_deps.py     # Dependency checker
+    └── README_EMBEDDING.md         # Embedding documentation
 ```
 
 ## Prerequisites
@@ -169,11 +173,27 @@ cp .env.example .env
 ollama serve
 ```
 
-### 5. Ingest SCIN Database (Optional)
+### 5. Embed SCIN Database with SigLIP (Recommended)
+
+The system uses SigLIP (Sigmoid Loss for Language Image Pre-training) to create high-quality embeddings of 6,500+ dermatology images for similarity search.
 
 ```bash
-python scripts/ingest_scin.py --data-dir /path/to/scin/data
+# Quick test with 10 images
+python scripts/test_siglip_embedding.py
+
+# Embed full SCIN dataset (~30-45 minutes on GPU)
+python scripts/embed_scin_siglip.py
+
+# Or embed subset for testing
+python scripts/embed_scin_siglip.py --limit 1000
 ```
+
+**Why SigLIP?**
+- Superior fine-grained visual recognition for medical images
+- 768-dimensional embeddings optimized for cosine similarity
+- Better zero-shot performance than CLIP on specialized domains
+
+See [scripts/README_EMBEDDING.md](scripts/README_EMBEDDING.md) for detailed documentation.
 
 ### 6. Run Server
 

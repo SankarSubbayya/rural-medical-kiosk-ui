@@ -5,9 +5,10 @@ A highly intuitive, empathetic UI for a rural medical AI kiosk designed to bridg
 ## Features
 
 - **Handshake (Login)**: QR code scanning or phone number entry with large dial pad
-- **Consultation (Chat)**: Voice-first AI interaction with friendly avatar
-- **Camera Capture**: Dermatology image capture for AI analysis
+- **Consultation (Chat)**: Voice-first AI interaction with friendly avatar using GPT-OSS (20B)
+- **Camera Capture**: Dermatology image capture for AI analysis using MedGemma
 - **Health Passport**: Visual timeline of health records and next steps
+- **RAG Similarity Search**: Find similar cases from 6,500+ dermatology images using SigLIP embeddings
 
 ---
 
@@ -209,7 +210,7 @@ CREATE TABLE consultations (
 ## Folder Structure
 
 \`\`\`
-├── app/
+├── app/                     # Next.js 16 frontend
 │   ├── globals.css          # Theme & styling
 │   ├── layout.tsx           # Root layout
 │   └── page.tsx             # Main app entry
@@ -226,7 +227,24 @@ CREATE TABLE consultations (
 │       └── kiosk-navigation.tsx
 ├── lib/
 │   └── kiosk-services.ts    # ** MAIN INTEGRATION FILE **
+├── backend/                 # FastAPI Python backend
+│   ├── main.py              # Backend server
+│   ├── app/                 # Services, models, routers
+│   └── scripts/             # SigLIP embedding & SCIN ingestion
 └── README.md
+\`\`\`
+
+## Backend Architecture
+
+The backend uses:
+- **Ollama** for local LLM inference (gpt-oss:20b, MedGemma)
+- **SigLIP** for medical image embeddings (768-dim vectors)
+- **Qdrant** vector database for similarity search
+- **Whisper** for multi-language speech-to-text
+- **SOAP framework** for medical consultation structure
+
+See [backend/README.md](backend/README.md) for setup and API documentation.
+
 \`\`\`
 
 ---
