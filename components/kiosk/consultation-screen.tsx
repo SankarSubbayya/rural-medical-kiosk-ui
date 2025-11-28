@@ -25,7 +25,7 @@ export function ConsultationScreen({ userName }: ConsultationScreenProps) {
     {
       id: "1",
       role: "assistant",
-      content: `Hello ${userName}! I'm here to help you today. You can tell me what hurts or any health concerns you have. I'm listening.`,
+      content: `[v2-BACKEND-CONNECTED] Hello ${userName}! I'm here to help you today. You can tell me what hurts or any health concerns you have. I'm listening.`,
     },
   ])
   const [isListening, setIsListening] = useState(false)
@@ -34,6 +34,7 @@ export function ConsultationScreen({ userName }: ConsultationScreenProps) {
   const [currentlyPlaying, setCurrentlyPlaying] = useState<string | null>("1")
   const [highlightedWordIndex, setHighlightedWordIndex] = useState(0)
   const [showCamera, setShowCamera] = useState(false)
+  const [consultationId, setConsultationId] = useState<string | undefined>(undefined)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // Simulate word-by-word highlighting for the playing message
@@ -81,7 +82,13 @@ export function ConsultationScreen({ userName }: ConsultationScreenProps) {
         setMessages((prev) => [...prev, userMessage])
 
         // Get AI response
-        const aiResult = await KioskServices.sendMessageToAI(result.transcript)
+        const aiResult = await KioskServices.sendMessageToAI(result.transcript, undefined, consultationId)
+
+        // Store consultation ID from first response
+        if (aiResult.success && aiResult.consultationId && !consultationId) {
+          setConsultationId(aiResult.consultationId)
+        }
+
         if (aiResult.success && aiResult.message) {
           const aiResponse: Message = {
             id: (Date.now() + 1).toString(),
@@ -110,7 +117,18 @@ export function ConsultationScreen({ userName }: ConsultationScreenProps) {
     const messageToSend = textInput
     setTextInput("")
 
-    const aiResult = await KioskServices.sendMessageToAI(messageToSend)
+    console.log('=== CALLING BACKEND API ===')
+    alert('Calling backend API for: ' + messageToSend)
+
+    const aiResult = await KioskServices.sendMessageToAI(messageToSend, undefined, consultationId)
+
+    console.log('=== AI RESULT ===', aiResult)
+
+    // Store consultation ID from first response
+    if (aiResult.success && aiResult.consultationId && !consultationId) {
+      setConsultationId(aiResult.consultationId)
+    }
+
     if (aiResult.success && aiResult.message) {
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
@@ -330,6 +348,7 @@ export function ConsultationScreen({ userName }: ConsultationScreenProps) {
         onClose={() => setShowCamera(false)}
         onCapture={handleImageCapture}
         onAnalysisComplete={handleAnalysisComplete}
+        consultationId={consultationId}
       />
     </div>
   )

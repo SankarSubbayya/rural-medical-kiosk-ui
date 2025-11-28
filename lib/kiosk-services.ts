@@ -36,6 +36,7 @@ export interface AIResponse {
   message?: string
   audioUrl?: string
   suggestedActions?: string[]
+  consultationId?: string
   error?: string
 }
 
@@ -238,14 +239,20 @@ export async function sendMessageToAI(
         }
       }
       activeConsultationId = createResult.data.consultation_id
+      console.log('[sendMessageToAI] Created new consultation:', activeConsultationId)
+    } else {
+      console.log('[sendMessageToAI] Reusing consultation:', activeConsultationId)
     }
 
     // Send message to backend
+    console.log('[sendMessageToAI] Sending message:', message, 'to consultation:', activeConsultationId)
     const response = await sendChatMessage({
       consultation_id: activeConsultationId,
       message,
       language: 'en', // TODO: Detect user language
     })
+
+    console.log('[sendMessageToAI] Response:', JSON.stringify(response, null, 2))
 
     if (!response.success || !response.data) {
       return {
@@ -254,10 +261,12 @@ export async function sendMessageToAI(
       }
     }
 
+    console.log('[sendMessageToAI] Returning message:', response.data.message?.substring(0, 100))
     return {
       success: true,
-      message: response.data.response,
-      suggestedActions: response.data.suggestions,
+      message: response.data.message,
+      suggestedActions: response.data.suggested_actions,
+      consultationId: activeConsultationId,
     }
   } catch (error) {
     return {

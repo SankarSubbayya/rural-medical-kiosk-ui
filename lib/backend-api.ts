@@ -8,7 +8,13 @@
 // CONFIGURATION
 // ============================================
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://100.110.206.125:8001'
+
+// Debug: Log the backend URL on load
+if (typeof window !== 'undefined') {
+  console.log('[BackendAPI] BACKEND_URL:', BACKEND_URL)
+  console.log('[BackendAPI] ENV:', process.env.NEXT_PUBLIC_BACKEND_URL)
+}
 
 // ============================================
 // TYPES
@@ -32,9 +38,17 @@ export interface ChatMessageRequest {
 }
 
 export interface ChatMessageResponse {
-  response: string
-  suggestions?: string[]
-  stage?: string
+  message: string
+  message_type?: string
+  audio_url?: string | null
+  audio_base64?: string | null
+  current_stage?: string
+  stage_progress?: number
+  suggested_actions?: string[]
+  requires_image?: boolean
+  requires_confirmation?: boolean
+  consultation_complete?: boolean
+  detected_language?: string
 }
 
 export interface ImageAnalysisRequest {
@@ -108,7 +122,9 @@ class BackendAPI {
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
     try {
-      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      const url = `${this.baseUrl}${endpoint}`
+      console.log('[BackendAPI] Fetching:', url)
+      const response = await fetch(url, {
         ...options,
         headers: {
           'Content-Type': 'application/json',
@@ -178,7 +194,10 @@ class BackendAPI {
   async createConsultation(userId?: string): Promise<ApiResponse<ConsultationCreateResponse>> {
     return this.request<ConsultationCreateResponse>('/consultation/create', {
       method: 'POST',
-      body: JSON.stringify({ user_id: userId }),
+      body: JSON.stringify({
+        patient_id: userId || 'anonymous-' + Date.now(),
+        language: 'en'
+      }),
     })
   }
 

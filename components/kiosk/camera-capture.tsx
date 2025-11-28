@@ -13,9 +13,10 @@ interface CameraCaptureProps {
   onClose: () => void
   onCapture: (imageData: string) => void
   onAnalysisComplete?: (result: KioskServices.ImageUploadResult) => void
+  consultationId?: string
 }
 
-export function CameraCapture({ isOpen, onClose, onCapture, onAnalysisComplete }: CameraCaptureProps) {
+export function CameraCapture({ isOpen, onClose, onCapture, onAnalysisComplete, consultationId }: CameraCaptureProps) {
   const [mode, setMode] = useState<"camera" | "preview" | "uploading">("camera")
   const [capturedImage, setCapturedImage] = useState<string | null>(null)
   const [cameraError, setCameraError] = useState<string | null>(null)
@@ -103,8 +104,8 @@ export function CameraCapture({ isOpen, onClose, onCapture, onAnalysisComplete }
       setIsAnalyzing(true)
       onCapture(capturedImage)
 
-      // Call the analysis service
-      const result = await KioskServices.analyzeDermatologyImage(capturedImage)
+      // Call the analysis service with consultation ID
+      const result = await KioskServices.analyzeDermatologyImage(capturedImage, undefined, consultationId)
 
       setIsAnalyzing(false)
       if (onAnalysisComplete) {
