@@ -14,22 +14,25 @@ A highly intuitive, empathetic UI for a rural medical AI kiosk designed to bridg
 
 ## Files to Customize
 
-### Core Services (Primary Integration Point)
+### Core Services (✅ Fully Integrated with Backend)
 
-| File | Purpose | What to Customize |
-|------|---------|-------------------|
-| `lib/kiosk-services.ts` | **All backend integrations** | Authentication, AI chat, voice recognition, image analysis, health records |
+| File | Purpose | Status |
+|------|---------|--------|
+| [lib/backend-api.ts](lib/backend-api.ts) | **Backend API client** | ✅ Complete - FastAPI integration |
+| [lib/kiosk-services.ts](lib/kiosk-services.ts) | **Service layer** | ✅ Integrated - Uses backend for AI/medical services |
 
-This is the **main file** you need to modify. It contains placeholder functions for:
+**Integration Status:**
 
+✅ **Completed Integrations:**
+- `sendMessageToAI()` - Uses Ollama (gpt-oss:20b) via backend
+- `analyzeDermatologyImage()` - Uses MedGemma + SigLIP RAG
+- `startVoiceRecognition()` - Uses Whisper for transcription
+- `textToSpeech()` - Uses gTTS for voice output
+
+⚠️ **Still Placeholder (Customize as needed):**
 - `authenticateWithQR()` - QR code authentication
 - `authenticateWithPhone()` - Phone number + OTP authentication
-- `startVoiceRecognition()` - Speech-to-text
-- `sendMessageToAI()` - AI chat responses
-- `speakText()` - Text-to-speech
-- `captureAndAnalyzeImage()` - Dermatology image analysis
-- `fetchHealthRecords()` - Patient health history
-- `syncOfflineData()` - Offline data synchronization
+- `fetchHealthHistory()` - Patient health records retrieval
 
 ---
 
@@ -78,92 +81,76 @@ This is the **main file** you need to modify. It contains placeholder functions 
 
 ## Environment Variables
 
-Add these to your `.env.local` file or Vercel project settings:
+Add these to your `.env.local` file:
 
 \`\`\`env
-# Authentication (Supabase example)
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+# Backend API URL (required)
+NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
 
-# AI Services (if not using Vercel AI Gateway)
-OPENAI_API_KEY=your_openai_key
-
-# Voice Services (optional - browser API works without this)
-DEEPGRAM_API_KEY=your_deepgram_key
-
-# Image Analysis (optional)
-GOOGLE_CLOUD_VISION_KEY=your_vision_key
+# Optional: Authentication (Supabase example)
+# NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+# NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 \`\`\`
+
+**Important**: The frontend now connects to the FastAPI backend for all AI/medical services (chat, image analysis, voice). No additional API keys are needed - the backend handles Ollama, Qdrant, and Whisper integration.
 
 ---
 
 ## Quick Start Integration Guide
 
-### Step 1: Authentication
+### Step 1: Start Backend Server
 
-Edit `lib/kiosk-services.ts` - `authenticateWithPhone()`:
+First, ensure the FastAPI backend is running:
 
-\`\`\`typescript
-export async function authenticateWithPhone(
-  phoneNumber: string
-): Promise<AuthResult> {
-  // Replace with your auth provider
-  const { data, error } = await supabase.auth.signInWithOtp({
-    phone: phoneNumber,
-  });
-  
-  return {
-    success: !error,
-    userId: data?.user?.id,
-    sessionToken: data?.session?.access_token,
-  };
-}
+\`\`\`bash
+cd backend
+source venv/bin/activate  # or venv\Scripts\activate on Windows
+
+# Start Ollama server (in separate terminal)
+ollama serve
+
+# Start FastAPI backend
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
 \`\`\`
 
-### Step 2: AI Chat
+Verify backend is running: http://localhost:8000/docs
 
-Edit `lib/kiosk-services.ts` - `sendMessageToAI()`:
+### Step 2: Configure Frontend
 
-\`\`\`typescript
-export async function sendMessageToAI(
-  message: string,
-  conversationHistory: Message[]
-): Promise<AIResponse> {
-  // Using Vercel AI SDK
-  const response = await generateText({
-    model: 'openai/gpt-4o',
-    messages: [
-      { role: 'system', content: 'You are a helpful rural health assistant...' },
-      ...conversationHistory,
-      { role: 'user', content: message },
-    ],
-  });
-  
-  return {
-    text: response.text,
-    audioUrl: undefined, // Add TTS if needed
-  };
-}
+Create `.env.local` file:
+
+\`\`\`bash
+cp .env.local.example .env.local
 \`\`\`
 
-### Step 3: Health Records
+Edit `.env.local`:
 
-Edit `lib/kiosk-services.ts` - `fetchHealthRecords()`:
-
-\`\`\`typescript
-export async function fetchHealthRecords(
-  userId: string
-): Promise<HealthRecord[]> {
-  // Fetch from your database
-  const { data } = await supabase
-    .from('health_records')
-    .select('*')
-    .eq('user_id', userId)
-    .order('date', { ascending: false });
-  
-  return data || [];
-}
+\`\`\`env
+NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
 \`\`\`
+
+### Step 3: Start Frontend
+
+\`\`\`bash
+pnpm install
+pnpm dev
+\`\`\`
+
+Open http://localhost:3000
+
+### Step 4: Test Integration
+
+The frontend is now fully integrated with the backend:
+
+- **AI Chat**: Uses Ollama (gpt-oss:20b) via `/chat/message`
+- **Image Analysis**: Uses MedGemma + SigLIP RAG via `/analyze/image`
+- **Voice Input**: Uses Whisper via `/speech/transcribe`
+- **Voice Output**: Uses gTTS via `/speech/synthesize`
+- **Similar Cases**: Uses Qdrant vector search via `/analyze/similar`
+
+All integration code is in:
+- [lib/backend-api.ts](lib/backend-api.ts) - API client
+- [lib/kiosk-services.ts](lib/kiosk-services.ts) - Service layer
 
 ---
 

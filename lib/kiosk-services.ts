@@ -125,93 +125,168 @@ export async function authenticateWithPhone(phoneNumber: string): Promise<QRScan
 // VOICE INTERACTION SERVICES
 // ============================================
 
+// Active recording state
+let mediaRecorder: MediaRecorder | null = null
+let audioChunks: Blob[] = []
+
 /**
  * Start voice recognition
- * @placeholder Replace with actual speech-to-text service
+ * Uses browser MediaRecorder API to capture audio, then sends to FastAPI backend with Whisper
  */
-export async function startVoiceRecognition(): Promise<VoiceRecognitionResult> {
-  // PLACEHOLDER: Initialize Web Speech API or external service
-  // Example:
-  // const recognition = new webkitSpeechRecognition()
-  // recognition.lang = 'en-US'
-  // recognition.start()
+export async function startVoiceRecognition(language: string = 'en'): Promise<VoiceRecognitionResult> {
+  try {
+    // Request microphone access
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
 
-  // PLACEHOLDER: For offline/rural areas, consider:
-  // - Local speech recognition models
-  // - Offline-first architecture with sync
+    // Create MediaRecorder
+    audioChunks = []
+    mediaRecorder = new MediaRecorder(stream)
 
-  // Simulated response for development
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        success: true,
-        transcript: "I have been having headaches for the past few days",
-        confidence: 0.92,
-      })
-    }, 3000)
-  })
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        audioChunks.push(event.data)
+      }
+    }
+
+    // Start recording
+    mediaRecorder.start()
+
+    // Return a promise that resolves when recording is stopped
+    return new Promise((resolve) => {
+      if (!mediaRecorder) {
+        resolve({
+          success: false,
+          error: 'MediaRecorder not initialized',
+        })
+        return
+      }
+
+      mediaRecorder.onstop = async () => {
+        // Stop all tracks to release microphone
+        stream.getTracks().forEach((track) => track.stop())
+
+        // Create audio blob
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' })
+
+        // Send to backend for transcription
+        try {
+          const { transcribeSpeech } = await import('./backend-api')
+          const response = await transcribeSpeech({
+            audio: audioBlob,
+            language,
+          })
+
+          if (!response.success || !response.data) {
+            resolve({
+              success: false,
+              error: response.error || 'Transcription failed',
+            })
+            return
+          }
+
+          resolve({
+            success: true,
+            transcript: response.data.transcript,
+            confidence: response.data.confidence,
+          })
+        } catch (error) {
+          resolve({
+            success: false,
+            error: error instanceof Error ? error.message : 'Transcription error',
+          })
+        }
+      }
+    })
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Microphone access denied',
+    }
+  }
 }
 
 /**
- * Stop voice recognition
- * @placeholder Replace with actual stop functionality
+ * Stop voice recognition and trigger transcription
  */
 export function stopVoiceRecognition(): void {
-  // PLACEHOLDER: Stop active recognition session
-  // Example: recognition.stop()
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop()
+  }
 }
 
 /**
  * Send message to AI health assistant and get response
- * @placeholder Replace with actual AI/LLM API integration
+ * Uses FastAPI backend with Ollama (gpt-oss:20b)
  */
 export async function sendMessageToAI(
   message: string,
   conversationHistory?: Array<{ role: string; content: string }>,
+  consultationId?: string,
 ): Promise<AIResponse> {
-  // PLACEHOLDER: Send to AI backend
-  // Example:
-  // const response = await fetch('/api/ai/chat', {
-  //   method: 'POST',
-  //   body: JSON.stringify({ message, history: conversationHistory }),
-  // })
+  try {
+    // Import backend API
+    const { sendChatMessage, createConsultation } = await import('./backend-api')
 
-  // PLACEHOLDER: Consider using:
-  // - OpenAI GPT-4 with medical prompts
-  // - Specialized medical AI models
-  // - Local LLM for offline support
+    // Create consultation if not exists
+    let activeConsultationId = consultationId
+    if (!activeConsultationId) {
+      const createResult = await createConsultation()
+      if (!createResult.success || !createResult.data) {
+        return {
+          success: false,
+          error: createResult.error || 'Failed to create consultation',
+        }
+      }
+      activeConsultationId = createResult.data.consultation_id
+    }
 
-  // Simulated response for development
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        success: true,
-        message:
-          "I understand you have been experiencing headaches. Can you tell me more? Is the pain on one side of your head or both sides? Does light or sound make it worse?",
-        suggestedActions: ["Describe pain location", "Rate pain 1-10", "Mention other symptoms"],
-      })
-    }, 1000)
-  })
+    // Send message to backend
+    const response = await sendChatMessage({
+      consultation_id: activeConsultationId,
+      message,
+      language: 'en', // TODO: Detect user language
+    })
+
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.error || 'Failed to get AI response',
+      }
+    }
+
+    return {
+      success: true,
+      message: response.data.response,
+      suggestedActions: response.data.suggestions,
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Network error',
+    }
+  }
 }
 
 /**
  * Convert text to speech for AI responses
- * @placeholder Replace with actual TTS service
+ * Uses FastAPI backend with gTTS
  */
-export async function textToSpeech(text: string): Promise<{ audioUrl: string } | null> {
-  // PLACEHOLDER: Generate speech from text
-  // Example:
-  // const audio = await fetch('/api/tts', {
-  //   method: 'POST',
-  //   body: JSON.stringify({ text, voice: 'friendly-female' }),
-  // })
+export async function textToSpeech(text: string, language: string = 'en'): Promise<{ audioUrl: string } | null> {
+  try {
+    const { synthesizeSpeech } = await import('./backend-api')
 
-  // PLACEHOLDER: Consider:
-  // - Browser's native SpeechSynthesis API
-  // - ElevenLabs or similar for natural voices
-  // - Pre-generated audio for common phrases
+    const response = await synthesizeSpeech({ text, language })
 
-  return null // Return audio URL when implemented
+    if (!response.success || !response.data) {
+      console.error('TTS error:', response.error)
+      return null
+    }
+
+    return { audioUrl: response.data.audio_url }
+  } catch (error) {
+    console.error('TTS error:', error)
+    return null
+  }
 }
 
 // ============================================
@@ -235,40 +310,65 @@ export async function captureImage(): Promise<{ imageData: string } | null> {
 
 /**
  * Upload and analyze dermatology image
- * @placeholder Replace with actual image analysis API
+ * Uses FastAPI backend with MedGemma + SigLIP RAG
  */
-export async function analyzeDermatologyImage(imageData: string, bodyLocation?: string): Promise<ImageUploadResult> {
-  // PLACEHOLDER: Upload image to backend
-  // Example:
-  // const formData = new FormData()
-  // formData.append('image', imageData)
-  // formData.append('location', bodyLocation)
-  // const result = await fetch('/api/dermatology/analyze', {
-  //   method: 'POST',
-  //   body: formData,
-  // })
+export async function analyzeDermatologyImage(
+  imageData: string | Blob | File,
+  bodyLocation?: string,
+  consultationId?: string,
+): Promise<ImageUploadResult> {
+  try {
+    const { analyzeImage } = await import('./backend-api')
 
-  // PLACEHOLDER: Consider using:
-  // - Specialized dermatology AI models
-  // - Integration with medical imaging services
-  // - HIPAA-compliant storage
+    // Convert base64 to Blob if needed
+    let imageBlob: Blob | File
+    if (typeof imageData === 'string') {
+      // Handle data URL (e.g., "data:image/jpeg;base64,...")
+      const base64Data = imageData.includes(',') ? imageData.split(',')[1] : imageData
+      const byteCharacters = atob(base64Data)
+      const byteNumbers = new Array(byteCharacters.length)
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i)
+      }
+      const byteArray = new Uint8Array(byteNumbers)
+      imageBlob = new Blob([byteArray], { type: 'image/jpeg' })
+    } else {
+      imageBlob = imageData
+    }
 
-  // Simulated response for development
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        success: true,
-        imageId: "img_" + Date.now(),
-        analysisResult: {
-          condition: "Minor skin irritation",
-          confidence: 0.85,
-          severity: "low",
-          recommendations: ["Keep the area clean and dry", "Apply moisturizer if dry", "Monitor for changes"],
-          requiresFollowUp: false,
-        },
-      })
-    }, 2000)
-  })
+    // Analyze image
+    const response = await analyzeImage({
+      image: imageBlob,
+      body_location: bodyLocation,
+      consultation_id: consultationId,
+    })
+
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        error: response.error || 'Failed to analyze image',
+      }
+    }
+
+    const analysis = response.data
+
+    return {
+      success: true,
+      imageId: consultationId || 'img_' + Date.now(),
+      analysisResult: {
+        condition: analysis.condition,
+        confidence: analysis.confidence,
+        severity: analysis.severity,
+        recommendations: analysis.recommendations,
+        requiresFollowUp: analysis.requires_followup,
+      },
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Image analysis failed',
+    }
+  }
 }
 
 // ============================================
