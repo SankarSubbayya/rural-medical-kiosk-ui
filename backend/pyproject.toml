@@ -11,41 +11,37 @@ dependencies = [
     "uvicorn[standard]>=0.32.0",
     "python-multipart>=0.0.12",
     "python-dotenv>=1.0.1",
-
     # AI/ML Models - Ollama for local LLM
     "ollama>=0.3.3",
     "transformers>=4.46.0",
     "torch>=2.5.0",
     "accelerate>=1.0.0",
-
+    "sentencepiece>=0.2.0",
     # Image Processing
     "Pillow>=10.4.0",
     "opencv-python-headless>=4.10.0.84",
-
     # Vector Store & Embeddings - Qdrant
     "qdrant-client>=1.12.0",
     "sentence-transformers>=3.2.0",
-
     # Speech
     "openai-whisper>=20231117",
     "gtts>=2.5.3",
     "pydub>=0.25.1",
-
     # PDF Generation
     "reportlab>=4.2.0",
     "pypdf>=4.3.0",
-
     # Database
     "sqlalchemy>=2.0.35",
     "asyncpg>=0.29.0",
     "aiosqlite>=0.20.0",
-
     # Utilities
     "pydantic>=2.9.0",
     "pydantic-settings>=2.5.0",
     "httpx>=0.27.2",
     "aiofiles>=24.1.0",
     "numpy>=1.26.4",
+    "pandas>=2.2.0",
+    "tqdm>=4.66.0",
 ]
 
 [project.optional-dependencies]
