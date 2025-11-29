@@ -5,10 +5,11 @@ A highly intuitive, empathetic UI for a rural medical AI kiosk designed to bridg
 ## Features
 
 - **Handshake (Login)**: QR code scanning or phone number entry with large dial pad
-- **Consultation (Chat)**: Voice-first AI interaction with friendly avatar using GPT-OSS (20B)
+- **Consultation (Chat)**: Voice-first AI interaction with **Google ADK SOAP Agent** for intelligent medical conversations
 - **Camera Capture**: Dermatology image capture for AI analysis using MedGemma
 - **Health Passport**: Visual timeline of health records and next steps
 - **RAG Similarity Search**: Find similar cases from 6,500+ dermatology images using SigLIP embeddings
+- **Intelligent Agent**: Google's Agent Development Kit with automatic function calling for SOAP workflow
 
 ---
 
@@ -24,8 +25,8 @@ A highly intuitive, empathetic UI for a rural medical AI kiosk designed to bridg
 **Integration Status:**
 
 ✅ **Completed Integrations:**
-- `sendMessageToAI()` - Uses Ollama (gpt-oss:20b) via backend
-- `analyzeDermatologyImage()` - Uses MedGemma + SigLIP RAG
+- `sendMessageToAI()` - Uses **Google ADK SOAP Agent** with Gemini 2.0 + MCP tools
+- `analyzeDermatologyImage()` - Uses MedGemma + SigLIP RAG via MCP tools
 - `startVoiceRecognition()` - Uses Whisper for transcription
 - `textToSpeech()` - Uses gTTS for voice output
 
@@ -92,21 +93,37 @@ NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
 # NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 \`\`\`
 
-**Important**: The frontend now connects to the FastAPI backend for all AI/medical services (chat, image analysis, voice). No additional API keys are needed - the backend handles Ollama, Qdrant, and Whisper integration.
+**Important**: The frontend now connects to the FastAPI backend for all AI/medical services (chat, image analysis, voice). The backend uses Google ADK with Gemini 2.0 for intelligent agent orchestration.
 
 ---
 
 ## Quick Start Integration Guide
 
-### Step 1: Start Backend Server
+### Step 1: Configure Backend Environment
 
-First, ensure the FastAPI backend is running:
+First, set up your environment variables:
 
 \`\`\`bash
 cd backend
-source venv/bin/activate  # or venv\Scripts\activate on Windows
+cp .env.example .env
+\`\`\`
 
-# Start Ollama server (in separate terminal)
+Edit `backend/.env` and add your Google API key:
+
+\`\`\`env
+# Required for Google ADK SOAP Agent
+GOOGLE_API_KEY=your_google_api_key_here
+\`\`\`
+
+Get your Google API key at: https://aistudio.google.com/apikey
+
+### Step 2: Start Backend Server
+
+\`\`\`bash
+cd backend
+source .venv/bin/activate  # or .venv\Scripts\activate on Windows
+
+# Start Ollama server (in separate terminal) - for MedGemma vision model
 ollama serve
 
 # Start FastAPI backend
@@ -115,7 +132,7 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
 Verify backend is running: http://localhost:8000/docs
 
-### Step 2: Configure Frontend
+### Step 3: Configure Frontend
 
 Create `.env.local` file:
 
@@ -129,7 +146,7 @@ Edit `.env.local`:
 NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
 \`\`\`
 
-### Step 3: Start Frontend
+### Step 4: Start Frontend
 
 \`\`\`bash
 pnpm install
@@ -138,19 +155,21 @@ pnpm dev
 
 Open http://localhost:3000
 
-### Step 4: Test Integration
+### Step 5: Test Integration
 
 The frontend is now fully integrated with the backend:
 
-- **AI Chat**: Uses Ollama (gpt-oss:20b) via `/chat/message`
-- **Image Analysis**: Uses MedGemma + SigLIP RAG via `/analyze/image`
+- **AI Chat**: Uses **Google ADK SOAP Agent** (Gemini 2.0) via `/agent/message`
+- **Image Analysis**: Uses MedGemma + SigLIP RAG via MCP tools
 - **Voice Input**: Uses Whisper via `/speech/transcribe`
 - **Voice Output**: Uses gTTS via `/speech/synthesize`
-- **Similar Cases**: Uses Qdrant vector search via `/analyze/similar`
+- **Similar Cases**: Uses Qdrant vector search via SigLIP embeddings
 
 All integration code is in:
 - [lib/backend-api.ts](lib/backend-api.ts) - API client
 - [lib/kiosk-services.ts](lib/kiosk-services.ts) - Service layer
+- [backend/agent/soap_agent.py](backend/agent/soap_agent.py) - Google ADK SOAP Agent
+- [backend/mcp_server/tools/](backend/mcp_server/tools/) - MCP tools (7 tools)
 
 ---
 
@@ -223,14 +242,67 @@ CREATE TABLE consultations (
 
 ## Backend Architecture
 
-The backend uses:
-- **Ollama** for local LLM inference (gpt-oss:20b, MedGemma)
-- **SigLIP** for medical image embeddings (768-dim vectors)
-- **Qdrant** vector database for similarity search
-- **Whisper** for multi-language speech-to-text
-- **SOAP framework** for medical consultation structure
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      Next.js Frontend (UI)                      │
+│  • consultation-screen.tsx  • camera-capture.tsx                │
+│  • kiosk-services.ts  • backend-api.ts                         │
+└─────────────────────────┬───────────────────────────────────────┘
+                          │ HTTP/REST API
+                          ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                   FastAPI Backend Server                        │
+│  Routers: /agent, /chat, /speech, /analyze, /report           │
+└─────────────────────────┬───────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────────┐
+│         Google ADK SOAP Orchestrator Agent (NEW!)              │
+│                                                                 │
+│  ┌──────────────────────────────────────────────────────────┐ │
+│  │ Gemini 2.0 Flash Exp (Google ADK)                        │ │
+│  │ • Automatic function calling                             │ │
+│  │ • Multi-turn conversation context                        │ │
+│  │ • SOAP workflow: GREETING → SUBJECTIVE → OBJECTIVE →     │ │
+│  │                  ASSESSMENT → PLAN → COMPLETED            │ │
+│  └───────────────────────┬──────────────────────────────────┘ │
+│                          │                                     │
+│                          │ Calls MCP Tools                     │
+│                          ▼                                     │
+│  ┌──────────────────────────────────────────────────────────┐ │
+│  │              MCP Tools (7 Tools)                         │ │
+│  ├──────────────────────────────────────────────────────────┤ │
+│  │ 1. check_message_safety   → SafetyService               │ │
+│  │ 2. extract_symptoms        → ChatService (Ollama)       │ │
+│  │ 3. analyze_image           → MedGemma (Ollama)          │ │
+│  │ 4. find_similar_cases      → SigLIP + Qdrant            │ │
+│  │ 5. create_consultation     → ConsultationService        │ │
+│  │ 6. finalize_consultation   → PlanService                │ │
+│  │ 7. speech_synthesis        → SpeechService (gTTS)       │ │
+│  └───────────────────────┬──────────────────────────────────┘ │
+└──────────────────────────┼──────────────────────────────────────┘
+                           │
+           ┌───────────────┴─────────────────┐
+           ▼                                 ▼
+┌─────────────────────────┐    ┌────────────────────────────┐
+│   Ollama (Local LLM)    │    │  Qdrant Vector Database    │
+│  • gpt-oss:20b (chat)   │    │  • SigLIP embeddings       │
+│  • MedGemma (vision)    │    │  • 6,500+ SCIN cases       │
+│  • Local inference      │    │  • Similarity search       │
+└─────────────────────────┘    └────────────────────────────┘
+```
 
-See [backend/README.md](backend/README.md) for setup and API documentation.
+### Key Technologies
+
+- **Google ADK (Agent Development Kit)**: Gemini 2.0 with automatic function calling
+- **MCP (Model Context Protocol)**: 7 tools for medical operations
+- **Ollama**: Local LLM for MedGemma vision and fallback chat
+- **SigLIP**: Medical image embeddings (768-dim vectors)
+- **Qdrant**: Vector database for RAG similarity search
+- **Whisper**: Multi-language speech-to-text
+- **SOAP Framework**: Medical consultation structure (Subjective, Objective, Assessment, Plan)
+
+See [backend/README.md](backend/README.md) for detailed setup and API documentation.
 
 \`\`\`
 
