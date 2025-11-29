@@ -11,6 +11,9 @@ torch==2.5.0
 accelerate==1.0.0
 bitsandbytes==0.44.0
 
+# Google ADK (Agent Development Kit)
+google-genai==1.52.0
+
 # Image Processing
 Pillow==10.4.0
 opencv-python-headless==4.10.0.84
