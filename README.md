@@ -242,6 +242,8 @@ CREATE TABLE consultations (
 
 ## Backend Architecture
 
+> 📊 **Detailed Documentation**: See [docs/architecture.md](docs/architecture.md) for comprehensive architecture documentation with Mermaid diagrams, data flows, and component details.
+
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                      Next.js Frontend (UI)                      │
