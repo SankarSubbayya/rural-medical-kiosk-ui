@@ -21,6 +21,7 @@ from app.routers import (
     report_router,
     consultation_router
 )
+from app.routers.agent import router as agent_router
 
 
 @asynccontextmanager
@@ -90,6 +91,7 @@ app.add_middleware(
 )
 
 # Register routers
+app.include_router(agent_router)
 app.include_router(consultation_router)
 app.include_router(chat_router)
 app.include_router(analysis_router)
@@ -106,6 +108,7 @@ async def root():
         "status": "running",
         "docs": "/docs",
         "endpoints": {
+            "agent": "/agent - SOAP Orchestrator Agent (Google ADK + MCP)",
             "consultation": "/consultation - SOAP consultation management",
             "chat": "/chat - Conversational AI (GPT-4o)",
             "analyze": "/analyze - Image analysis (MedGemma)",
