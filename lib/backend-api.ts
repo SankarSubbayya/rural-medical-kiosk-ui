@@ -8,7 +8,7 @@
 // CONFIGURATION
 // ============================================
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://100.110.206.125:8001'
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
 
 // Debug: Log the backend URL on load
 if (typeof window !== 'undefined') {
@@ -267,14 +267,33 @@ class BackendAPI {
   async transcribeSpeech(
     request: SpeechTranscriptionRequest
   ): Promise<ApiResponse<SpeechTranscriptionResponse>> {
-    const formData = new FormData()
-    formData.append('audio', request.audio)
+    // Convert audio blob to base64
+    const audioBase64 = await this.blobToBase64(request.audio)
 
-    if (request.language) {
-      formData.append('language', request.language)
-    }
+    return this.request<SpeechTranscriptionResponse>('/speech/transcribe', {
+      method: 'POST',
+      body: JSON.stringify({
+        audio_base64: audioBase64,
+        language: request.language || null
+      }),
+    })
+  }
 
-    return this.uploadRequest<SpeechTranscriptionResponse>('/speech/transcribe', formData)
+  /**
+   * Convert Blob/File to base64 string
+   */
+  private async blobToBase64(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        const result = reader.result as string
+        // Remove data URL prefix (e.g., "data:audio/webm;base64,")
+        const base64 = result.split(',')[1] || result
+        resolve(base64)
+      }
+      reader.onerror = reject
+      reader.readAsDataURL(blob)
+    })
   }
 
   async synthesizeSpeech(
@@ -287,10 +306,14 @@ class BackendAPI {
   }
 
   async detectLanguage(audioFile: File | Blob): Promise<ApiResponse<{ language: string }>> {
-    const formData = new FormData()
-    formData.append('audio', audioFile)
+    const audioBase64 = await this.blobToBase64(audioFile)
 
-    return this.uploadRequest<{ language: string }>('/speech/detect-language', formData)
+    return this.request<{ language: string }>('/speech/detect-language', {
+      method: 'POST',
+      body: JSON.stringify({
+        audio_base64: audioBase64
+      }),
+    })
   }
 
   async getSupportedLanguages(): Promise<ApiResponse<{ languages: string[] }>> {
@@ -312,9 +335,9 @@ class BackendAPI {
     })
   }
 
-  async downloadReportPDF(reportId: string): Promise<Blob | null> {
+  async downloadReportPDF(consultationId: string): Promise<Blob | null> {
     try {
-      const response = await fetch(`${this.baseUrl}/report/${reportId}/pdf`)
+      const response = await fetch(`${this.baseUrl}/report/${consultationId}/pdf`)
 
       if (!response.ok) {
         return null
@@ -325,6 +348,63 @@ class BackendAPI {
       console.error('PDF download error:', error)
       return null
     }
+  }
+
+  /**
+   * Generate and download PDF report for a consultation
+   */
+  async generateAndDownloadPDF(consultationId: string, reportType: 'patient' | 'physician' = 'physician'): Promise<{ success: boolean; error?: string }> {
+    try {
+      // Fetch PDF directly
+      const response = await fetch(`${this.baseUrl}/report/${consultationId}/pdf`)
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error')
+        console.error('PDF generation failed:', response.status, errorText)
+        return {
+          success: false,
+          error: `Failed to generate PDF report: ${response.status} ${response.statusText}`
+        }
+      }
+
+      const blob = await response.blob()
+
+      // Create download link
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      const reportLabel = reportType === 'patient' ? 'patient-summary' : 'physician-report'
+      link.download = `medical-${reportLabel}-${consultationId.substring(0, 8)}.pdf`
+      document.body.appendChild(link)
+      link.click()
+
+      // Cleanup
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+
+      return { success: true }
+    } catch (error) {
+      console.error('PDF download error:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
+    }
+  }
+
+  /**
+   * Generate text report (patient or physician)
+   */
+  async getTextReport(consultationId: string, reportType: 'patient' | 'physician' = 'patient'): Promise<ApiResponse<{ report_text: string }>> {
+    const endpoint = reportType === 'patient' ? '/report/patient' : '/report/physician'
+
+    return this.request<{ report_text: string }>(endpoint, {
+      method: 'POST',
+      body: JSON.stringify({
+        consultation_id: consultationId,
+        language: 'en'
+      }),
+    })
   }
 
   // ============================================
@@ -346,19 +426,20 @@ export const backendAPI = new BackendAPI()
 // CONVENIENCE EXPORTS
 // ============================================
 
-export const {
-  createConsultation,
-  getConsultation,
-  sendChatMessage,
-  startChat,
-  getChatHistory,
-  analyzeImage,
-  findSimilarCases,
-  transcribeSpeech,
-  synthesizeSpeech,
-  detectLanguage,
-  getSupportedLanguages,
-  generateReport,
-  downloadReportPDF,
-  healthCheck,
-} = backendAPI
+// Bind methods to preserve 'this' context
+export const createConsultation = backendAPI.createConsultation.bind(backendAPI)
+export const getConsultation = backendAPI.getConsultation.bind(backendAPI)
+export const sendChatMessage = backendAPI.sendChatMessage.bind(backendAPI)
+export const startChat = backendAPI.startChat.bind(backendAPI)
+export const getChatHistory = backendAPI.getChatHistory.bind(backendAPI)
+export const analyzeImage = backendAPI.analyzeImage.bind(backendAPI)
+export const findSimilarCases = backendAPI.findSimilarCases.bind(backendAPI)
+export const transcribeSpeech = backendAPI.transcribeSpeech.bind(backendAPI)
+export const synthesizeSpeech = backendAPI.synthesizeSpeech.bind(backendAPI)
+export const detectLanguage = backendAPI.detectLanguage.bind(backendAPI)
+export const getSupportedLanguages = backendAPI.getSupportedLanguages.bind(backendAPI)
+export const generateReport = backendAPI.generateReport.bind(backendAPI)
+export const downloadReportPDF = backendAPI.downloadReportPDF.bind(backendAPI)
+export const generateAndDownloadPDF = backendAPI.generateAndDownloadPDF.bind(backendAPI)
+export const getTextReport = backendAPI.getTextReport.bind(backendAPI)
+export const healthCheck = backendAPI.healthCheck.bind(backendAPI)

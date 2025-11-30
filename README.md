@@ -10,6 +10,7 @@ A highly intuitive, empathetic UI for a rural medical AI kiosk designed to bridg
 - **Health Passport**: Visual timeline of health records and next steps
 - **RAG Similarity Search**: Find similar cases from 6,500+ dermatology images using SigLIP embeddings
 - **Intelligent Agent**: Google's Agent Development Kit with automatic function calling for SOAP workflow
+- **Report Generation**: Patient-friendly summaries and physician SOAP reports with PDF export
 
 ---
 
@@ -29,6 +30,8 @@ A highly intuitive, empathetic UI for a rural medical AI kiosk designed to bridg
 - `analyzeDermatologyImage()` - Uses MedGemma + SigLIP RAG via MCP tools
 - `startVoiceRecognition()` - Uses Whisper for transcription
 - `textToSpeech()` - Uses gTTS for voice output
+- `generateAndDownloadPDF()` - Generates and downloads PDF reports (patient/physician)
+- `getTextReport()` - Fetches formatted text reports for viewing
 
 ⚠️ **Still Placeholder (Customize as needed):**
 - `authenticateWithQR()` - QR code authentication
@@ -54,6 +57,7 @@ A highly intuitive, empathetic UI for a rural medical AI kiosk designed to bridg
 | `components/kiosk/consultation-screen.tsx` | Main chat interface | Modify AI prompts, button labels, layout |
 | `components/kiosk/ai-avatar.tsx` | Animated AI persona header | Change avatar appearance, status messages |
 | `components/kiosk/camera-capture.tsx` | Photo capture modal | Adjust camera settings, upload limits |
+| `components/kiosk/report-viewer.tsx` | Report display modal | Customize formatting, styling, download behavior |
 
 #### Health Records
 
@@ -164,12 +168,36 @@ The frontend is now fully integrated with the backend:
 - **Voice Input**: Uses Whisper via `/speech/transcribe`
 - **Voice Output**: Uses gTTS via `/speech/synthesize`
 - **Similar Cases**: Uses Qdrant vector search via SigLIP embeddings
+- **Reports**: Patient/physician SOAP reports via `/report/patient` and `/report/physician`
+- **PDF Export**: PDF generation via `/report/{consultation_id}/pdf`
 
 All integration code is in:
 - [lib/backend-api.ts](lib/backend-api.ts) - API client
 - [lib/kiosk-services.ts](lib/kiosk-services.ts) - Service layer
 - [backend/agent/soap_agent.py](backend/agent/soap_agent.py) - Google ADK SOAP Agent
 - [backend/mcp_server/tools/](backend/mcp_server/tools/) - MCP tools (7 tools)
+
+### Step 6: Test Report Generation
+
+For testing report functionality without completing a full consultation:
+
+```bash
+# Create a sample consultation with complete SOAP data
+curl -X POST http://localhost:8000/test/create-sample-consultation
+
+# Returns: {"consultation_id": "uuid-here", ...}
+```
+
+Use the returned consultation ID to test:
+- **View Report**: Click the report button (top-right) in the consultation screen
+- **Download PDF**: Choose Patient Summary or Physician Report and click Download
+- **View Formatted Report**: Click View to see the report in a modal
+
+The test endpoint creates a complete dermatology consultation with:
+- Patient symptoms (red, itchy rash)
+- Captured images
+- Differential diagnoses with ICD-10 codes
+- Treatment plan and self-care instructions
 
 ---
 
@@ -228,6 +256,7 @@ CREATE TABLE consultations (
 │       ├── consultation-screen.tsx
 │       ├── ai-avatar.tsx
 │       ├── camera-capture.tsx
+│       ├── report-viewer.tsx
 │       ├── health-passport-screen.tsx
 │       ├── agentic-health-logo.tsx
 │       └── kiosk-navigation.tsx
@@ -254,7 +283,7 @@ CREATE TABLE consultations (
                           ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                   FastAPI Backend Server                        │
-│  Routers: /agent, /chat, /speech, /analyze, /report           │
+│  Routers: /agent, /chat, /speech, /analyze, /report, /test    │
 └─────────────────────────┬───────────────────────────────────────┘
                           │
                           ▼
@@ -320,9 +349,33 @@ See [backend/README.md](backend/README.md) for detailed setup and API documentat
 
 ---
 
+## Documentation
+
+Comprehensive documentation is available in MkDocs format:
+
+```bash
+# Install MkDocs
+uv pip install mkdocs mkdocs-material mkdocs-mermaid2-plugin
+
+# Serve documentation locally
+mkdocs serve
+```
+
+Visit [http://localhost:8000](http://localhost:8000) to browse the full documentation.
+
+**Documentation Sections:**
+- Getting Started - Installation, configuration, and quick start
+- Architecture - System design and component details
+- Features - Detailed feature documentation
+- Development - API reference and development guides
+- Deployment - Production setup and monitoring
+- Reference - SOAP framework, troubleshooting, and more
+
 ## Support
 
 For issues or questions, check:
+- [Documentation](http://localhost:8000) - Run `mkdocs serve`
+- [Troubleshooting Guide](docs/reference/troubleshooting.md)
 - Vercel deployment logs
-- Browser console for `[v0]` debug messages
+- Browser console for debug messages
 - Network tab for API call failures

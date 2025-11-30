@@ -223,52 +223,53 @@ export async function sendMessageToAI(
   message: string,
   conversationHistory?: Array<{ role: string; content: string }>,
   consultationId?: string,
+  imageBase64?: string,
 ): Promise<AIResponse> {
   try {
-    // Import backend API
-    const { sendChatMessage, createConsultation } = await import('./backend-api')
+    console.log('=== CALLING BACKEND API ===', { hasImage: !!imageBase64 })
 
-    // Create consultation if not exists
-    let activeConsultationId = consultationId
-    if (!activeConsultationId) {
-      const createResult = await createConsultation()
-      if (!createResult.success || !createResult.data) {
-        return {
-          success: false,
-          error: createResult.error || 'Failed to create consultation',
-        }
-      }
-      activeConsultationId = createResult.data.consultation_id
-      console.log('[sendMessageToAI] Created new consultation:', activeConsultationId)
-    } else {
-      console.log('[sendMessageToAI] Reusing consultation:', activeConsultationId)
+    // Call the agent endpoint directly (Ollama SOAP agent)
+    const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
+
+    const requestBody: any = {
+      message,
+      consultation_id: consultationId,
+      patient_id: 'web-user-' + Date.now(),
+      language: 'en',
     }
 
-    // Send message to backend
-    console.log('[sendMessageToAI] Sending message:', message, 'to consultation:', activeConsultationId)
-    const response = await sendChatMessage({
-      consultation_id: activeConsultationId,
-      message,
-      language: 'en', // TODO: Detect user language
+    // Include image if provided
+    if (imageBase64) {
+      requestBody.image_base64 = imageBase64
+    }
+
+    const response = await fetch(`${BACKEND_URL}/agent/message`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
     })
 
-    console.log('[sendMessageToAI] Response:', JSON.stringify(response, null, 2))
-
-    if (!response.success || !response.data) {
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
       return {
         success: false,
-        error: response.error || 'Failed to get AI response',
+        error: errorData.detail || `HTTP ${response.status}`,
       }
     }
 
-    console.log('[sendMessageToAI] Returning message:', response.data.message?.substring(0, 100))
+    const data = await response.json()
+    console.log('=== AI RESULT ===', data)
+
     return {
-      success: true,
-      message: response.data.message,
-      suggestedActions: response.data.suggested_actions,
-      consultationId: activeConsultationId,
+      success: data.success || true,
+      message: data.message,
+      consultationId: data.consultation_id,
+      suggestedActions: data.suggested_actions,
     }
   } catch (error) {
+    console.error('=== AI ERROR ===', error)
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Network error',
@@ -282,16 +283,40 @@ export async function sendMessageToAI(
  */
 export async function textToSpeech(text: string, language: string = 'en'): Promise<{ audioUrl: string } | null> {
   try {
-    const { synthesizeSpeech } = await import('./backend-api')
+    const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
 
-    const response = await synthesizeSpeech({ text, language })
+    const response = await fetch(`${BACKEND_URL}/speech/synthesize`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ text, language }),
+    })
 
-    if (!response.success || !response.data) {
-      console.error('TTS error:', response.error)
+    if (!response.ok) {
+      console.error('TTS error: HTTP', response.status)
       return null
     }
 
-    return { audioUrl: response.data.audio_url }
+    const data = await response.json()
+
+    // Convert base64 audio to blob URL for playback
+    if (data.audio_base64) {
+      // Convert base64 to blob
+      const byteCharacters = atob(data.audio_base64)
+      const byteNumbers = new Array(byteCharacters.length)
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i)
+      }
+      const byteArray = new Uint8Array(byteNumbers)
+      const audioBlob = new Blob([byteArray], { type: 'audio/mp3' })
+
+      // Create object URL
+      const audioUrl = URL.createObjectURL(audioBlob)
+      return { audioUrl }
+    }
+
+    return null
   } catch (error) {
     console.error('TTS error:', error)
     return null

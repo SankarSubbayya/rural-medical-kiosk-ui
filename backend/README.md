@@ -94,7 +94,8 @@ backend/
 │       ├── chat.py           # Conversational AI
 │       ├── analysis.py       # Image analysis
 │       ├── speech.py         # Voice services
-│       └── report.py         # Report generation
+│       ├── report.py         # Report generation
+│       └── test_data.py      # Test endpoint for sample consultations
 │
 └── scripts/
     ├── ingest_scin.py              # Legacy SCIN ingestion
@@ -233,6 +234,9 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
 - `POST /report/physician` - Formal medical report
 - `GET /report/{id}/pdf` - Download PDF
 - `POST /report/submit` - Submit to facility
+
+### Testing
+- `POST /test/create-sample-consultation` - Create sample consultation with complete SOAP data for testing reports
 
 ## Supported Languages
 

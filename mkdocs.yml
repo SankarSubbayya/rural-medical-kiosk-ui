@@ -1,0 +1,125 @@
+site_name: Rural Medical AI Kiosk Documentation
+site_description: Documentation for the Rural Medical AI Kiosk - A voice-first, AI-powered dermatology consultation system
+site_author: Agentic Health
+site_url: https://your-docs-url.com
+
+repo_name: rural-medical-kiosk-ui
+repo_url: https://github.com/yourusername/rural-medical-kiosk-ui
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    # Palette toggle for light mode
+    - scheme: default
+      primary: teal
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Palette toggle for dark mode
+    - scheme: slate
+      primary: teal
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.tracking
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+    - content.code.annotation
+    - content.code.copy
+    - toc.follow
+
+  icon:
+    repo: fontawesome/brands/github
+
+  font:
+    text: Roboto
+    code: Roboto Mono
+
+plugins:
+  - search
+  - mermaid2
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:mermaid2.fence_mermaid
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - admonition
+  - pymdownx.details
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Quick Start: getting-started/quick-start.md
+    - Installation: getting-started/installation.md
+    - Configuration: getting-started/configuration.md
+    - Testing: getting-started/testing.md
+  - Architecture:
+    - Overview: architecture/overview.md
+    - Frontend: architecture/frontend.md
+    - Backend: architecture/backend.md
+    - Google ADK Agent: architecture/google-adk-agent.md
+    - MCP Tools: architecture/mcp-tools.md
+    - Data Flow: architecture/data-flow.md
+  - Features:
+    - SOAP Workflow: features/soap-workflow.md
+    - Voice Interface: features/voice-interface.md
+    - Image Analysis: features/image-analysis.md
+    - Report Generation: features/report-generation.md
+    - RAG Similarity Search: features/rag-similarity.md
+    - Multi-language Support: features/multi-language.md
+  - Development:
+    - Frontend Development: development/frontend.md
+    - Backend Development: development/backend.md
+    - API Reference: development/api-reference.md
+    - Custom Components: development/custom-components.md
+    - Testing Guide: development/testing-guide.md
+  - Deployment:
+    - Production Setup: deployment/production.md
+    - Environment Variables: deployment/environment.md
+    - Security: deployment/security.md
+    - Monitoring: deployment/monitoring.md
+  - Reference:
+    - SOAP Framework: reference/soap-framework.md
+    - ICD-10 Codes: reference/icd10-codes.md
+    - Medical Safety: reference/medical-safety.md
+    - Troubleshooting: reference/troubleshooting.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/yourusername/rural-medical-kiosk-ui
+    - icon: fontawesome/brands/twitter
+      link: https://twitter.com/yourhandle
+
+  version:
+    provider: mike
+
+extra_css:
+  - stylesheets/extra.css
+
+copyright: Copyright &copy; 2024 Agentic Health

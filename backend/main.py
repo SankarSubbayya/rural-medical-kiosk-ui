@@ -4,11 +4,17 @@ Dermatology Kiosk Backend - FastAPI Application
 Main entry point for the backend API server.
 
 Architecture:
-- GPT-4o for conversational AI and SOAP flow management
-- MedGemma for dermatological image analysis
-- SCIN database with ChromaDB for RAG retrieval
+- Ollama (gpt-oss:20b) for SOAP conversation management with function calling
+- MedGemma (Ollama) for dermatological image analysis
+- SCIN database with Qdrant for RAG retrieval
 - Whisper for speech-to-text, gTTS for text-to-speech
+- 7 MCP tools for medical operations
 """
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -19,7 +25,8 @@ from app.routers import (
     analysis_router,
     speech_router,
     report_router,
-    consultation_router
+    consultation_router,
+    test_data
 )
 from app.routers.agent import router as agent_router
 
@@ -83,6 +90,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",  # Next.js dev server
         "http://localhost:3001",
+        "http://localhost:3002",
         "https://*.vercel.app",   # Vercel deployments
     ],
     allow_credentials=True,
@@ -97,6 +105,7 @@ app.include_router(chat_router)
 app.include_router(analysis_router)
 app.include_router(speech_router)
 app.include_router(report_router)
+app.include_router(test_data.router)
 
 
 @app.get("/")

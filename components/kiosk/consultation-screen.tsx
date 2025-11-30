@@ -2,11 +2,13 @@
 
 import { useState, useRef, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Mic, MicOff, Keyboard, Send, Volume2, Camera } from "lucide-react"
+import { Mic, MicOff, Keyboard, Send, Volume2, Camera, FileText, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AiAvatar } from "@/components/kiosk/ai-avatar"
 import { CameraCapture } from "@/components/kiosk/camera-capture"
+import { ReportViewer } from "@/components/kiosk/report-viewer"
 import * as KioskServices from "@/lib/kiosk-services"
+import { generateAndDownloadPDF } from "@/lib/backend-api"
 
 interface Message {
   id: string
@@ -25,17 +27,23 @@ export function ConsultationScreen({ userName }: ConsultationScreenProps) {
     {
       id: "1",
       role: "assistant",
-      content: `[v2-BACKEND-CONNECTED] Hello ${userName}! I'm here to help you today. You can tell me what hurts or any health concerns you have. I'm listening.`,
+      content: `Hello ${userName}! I'm here to help you today. You can tell me what hurts or any health concerns you have. I'm listening.`,
     },
   ])
   const [isListening, setIsListening] = useState(false)
   const [showTextInput, setShowTextInput] = useState(false)
   const [textInput, setTextInput] = useState("")
-  const [currentlyPlaying, setCurrentlyPlaying] = useState<string | null>("1")
+  const [currentlyPlaying, setCurrentlyPlaying] = useState<string | null>(null)
   const [highlightedWordIndex, setHighlightedWordIndex] = useState(0)
   const [showCamera, setShowCamera] = useState(false)
   const [consultationId, setConsultationId] = useState<string | undefined>(undefined)
+  const [pendingImage, setPendingImage] = useState<string | undefined>(undefined)
+  const [showReportMenu, setShowReportMenu] = useState(false)
+  const [isDownloading, setIsDownloading] = useState(false)
+  const [showReportViewer, setShowReportViewer] = useState(false)
+  const [viewingReportType, setViewingReportType] = useState<'patient' | 'physician'>('patient')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
 
   // Simulate word-by-word highlighting for the playing message
   useEffect(() => {
@@ -66,6 +74,52 @@ export function ConsultationScreen({ userName }: ConsultationScreenProps) {
     scrollToBottom()
   }, [messages])
 
+  // Function to play text-to-speech for AI messages
+  const playTextToSpeech = async (text: string, messageId: string) => {
+    try {
+      // Stop any currently playing audio
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current = null
+      }
+
+      // Get TTS audio from backend
+      const ttsResult = await KioskServices.textToSpeech(text, 'en')
+
+      if (ttsResult && ttsResult.audioUrl) {
+        // Create and play audio
+        const audio = new Audio(ttsResult.audioUrl)
+        audioRef.current = audio
+
+        // Set currently playing state
+        setCurrentlyPlaying(messageId)
+        setHighlightedWordIndex(0)
+
+        // Handle audio events
+        audio.onended = () => {
+          setCurrentlyPlaying(null)
+          setHighlightedWordIndex(0)
+          audioRef.current = null
+          // Clean up object URL
+          URL.revokeObjectURL(ttsResult.audioUrl)
+        }
+
+        audio.onerror = () => {
+          console.error('Audio playback error')
+          setCurrentlyPlaying(null)
+          setHighlightedWordIndex(0)
+          audioRef.current = null
+        }
+
+        // Play the audio
+        await audio.play()
+      }
+    } catch (error) {
+      console.error('TTS error:', error)
+      setCurrentlyPlaying(null)
+    }
+  }
+
   const handleVoiceToggle = async () => {
     setIsListening(!isListening)
 
@@ -81,8 +135,18 @@ export function ConsultationScreen({ userName }: ConsultationScreenProps) {
         }
         setMessages((prev) => [...prev, userMessage])
 
-        // Get AI response
-        const aiResult = await KioskServices.sendMessageToAI(result.transcript, undefined, consultationId)
+        // Get AI response (include pending image if available)
+        const aiResult = await KioskServices.sendMessageToAI(
+          result.transcript,
+          undefined,
+          consultationId,
+          pendingImage
+        )
+
+        // Clear pending image after sending
+        if (pendingImage) {
+          setPendingImage(undefined)
+        }
 
         // Store consultation ID from first response
         if (aiResult.success && aiResult.consultationId && !consultationId) {
@@ -96,8 +160,8 @@ export function ConsultationScreen({ userName }: ConsultationScreenProps) {
             content: aiResult.message,
           }
           setMessages((prev) => [...prev, aiResponse])
-          setCurrentlyPlaying(aiResponse.id)
-          setHighlightedWordIndex(0)
+          // Play TTS for AI response
+          playTextToSpeech(aiResult.message, aiResponse.id)
         }
       }
     } else {
@@ -117,12 +181,18 @@ export function ConsultationScreen({ userName }: ConsultationScreenProps) {
     const messageToSend = textInput
     setTextInput("")
 
-    console.log('=== CALLING BACKEND API ===')
-    alert('Calling backend API for: ' + messageToSend)
+    // Send message with pending image if available
+    const aiResult = await KioskServices.sendMessageToAI(
+      messageToSend,
+      undefined,
+      consultationId,
+      pendingImage
+    )
 
-    const aiResult = await KioskServices.sendMessageToAI(messageToSend, undefined, consultationId)
-
-    console.log('=== AI RESULT ===', aiResult)
+    // Clear pending image after sending
+    if (pendingImage) {
+      setPendingImage(undefined)
+    }
 
     // Store consultation ID from first response
     if (aiResult.success && aiResult.consultationId && !consultationId) {
@@ -136,8 +206,8 @@ export function ConsultationScreen({ userName }: ConsultationScreenProps) {
         content: aiResult.message,
       }
       setMessages((prev) => [...prev, aiResponse])
-      setCurrentlyPlaying(aiResponse.id)
-      setHighlightedWordIndex(0)
+      // Play TTS for AI response
+      playTextToSpeech(aiResult.message, aiResponse.id)
     }
   }
 
@@ -149,26 +219,89 @@ export function ConsultationScreen({ userName }: ConsultationScreenProps) {
       imageData,
     }
     setMessages((prev) => [...prev, userMessage])
+    // Store image to be sent with next message
+    setPendingImage(imageData)
   }
 
   const handleAnalysisComplete = (result: KioskServices.ImageUploadResult) => {
     if (result.success && result.analysisResult) {
       const analysis = result.analysisResult
+      const messageContent = `I've analyzed the image you shared. ${
+        analysis.condition
+          ? `It appears to be ${analysis.condition} with ${analysis.severity} severity.`
+          : "Let me take a closer look."
+      } ${analysis.recommendations.join(" ")} ${
+        analysis.requiresFollowUp ? "I recommend scheduling a follow-up with a healthcare provider." : ""
+      }`
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: `I've analyzed the image you shared. ${
-          analysis.condition
-            ? `It appears to be ${analysis.condition} with ${analysis.severity} severity.`
-            : "Let me take a closer look."
-        } ${analysis.recommendations.join(" ")} ${
-          analysis.requiresFollowUp ? "I recommend scheduling a follow-up with a healthcare provider." : ""
-        }`,
+        content: messageContent,
       }
       setMessages((prev) => [...prev, aiResponse])
-      setCurrentlyPlaying(aiResponse.id)
-      setHighlightedWordIndex(0)
+      // Play TTS for AI response
+      playTextToSpeech(messageContent, aiResponse.id)
     }
+  }
+
+  const handleDownloadReport = async (reportType: 'patient' | 'physician') => {
+    if (!consultationId) {
+      alert('No consultation available to generate report')
+      return
+    }
+
+    setIsDownloading(true)
+    setShowReportMenu(false)
+
+    try {
+      const result = await generateAndDownloadPDF(consultationId, reportType)
+
+      if (result.success) {
+        const reportLabel = reportType === 'patient' ? 'Patient Summary' : 'Physician Report'
+        const successMessage: Message = {
+          id: Date.now().toString(),
+          role: "assistant",
+          content: `${reportLabel} has been downloaded successfully. You can find it in your downloads folder.`,
+        }
+        setMessages((prev) => [...prev, successMessage])
+        playTextToSpeech(successMessage.content, successMessage.id)
+      } else {
+        throw new Error(result.error || 'Failed to download report')
+      }
+    } catch (error) {
+      console.error('Report download error:', error)
+      let errorText = `Sorry, I couldn't generate the report.`
+
+      // Provide helpful error message based on the error
+      if (error instanceof Error) {
+        if (error.message.includes('404')) {
+          errorText = `The consultation report is not ready yet. Please complete the consultation first by describing your symptoms and uploading an image.`
+        } else if (error.message.includes('500')) {
+          errorText = `There was an error generating the report. Please try again later.`
+        }
+      }
+
+      const errorMessage: Message = {
+        id: Date.now().toString(),
+        role: "assistant",
+        content: errorText,
+      }
+      setMessages((prev) => [...prev, errorMessage])
+      playTextToSpeech(errorMessage.content, errorMessage.id)
+    } finally {
+      setIsDownloading(false)
+    }
+  }
+
+  const handleViewReport = (reportType: 'patient' | 'physician') => {
+    if (!consultationId) {
+      alert('No consultation available to view report')
+      return
+    }
+
+    setViewingReportType(reportType)
+    setShowReportViewer(true)
+    setShowReportMenu(false)
   }
 
   const renderHighlightedText = (message: Message) => {
@@ -194,7 +327,120 @@ export function ConsultationScreen({ userName }: ConsultationScreenProps) {
   }
 
   return (
-    <div className="h-full flex flex-col bg-background overflow-hidden">
+    <div className="h-full flex flex-col bg-background overflow-hidden relative">
+      {/* Floating Report Button */}
+      {consultationId && (
+        <motion.button
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setShowReportMenu(true)}
+          className="absolute top-4 right-4 z-10 w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-colors"
+          aria-label="View Reports"
+        >
+          <FileText className="w-6 h-6" />
+        </motion.button>
+      )}
+
+      {/* Report Menu Modal */}
+      <AnimatePresence>
+        {showReportMenu && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 bg-black/50 z-20 flex items-center justify-center p-4"
+            onClick={() => setShowReportMenu(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-card rounded-2xl p-6 max-w-md w-full border-2 border-border shadow-xl"
+            >
+              <h2 className="text-2xl font-bold text-foreground mb-4">Download Reports</h2>
+              <p className="text-base text-muted-foreground mb-6">
+                Choose which report you would like to download or view:
+              </p>
+
+              <div className="space-y-3">
+                {/* Patient Report */}
+                <div className="border-2 border-border rounded-xl p-4">
+                  <h3 className="font-semibold text-lg text-foreground mb-2">Patient Summary</h3>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Easy-to-read summary for patients in simple language
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => handleViewReport('patient')}
+                      disabled={isDownloading}
+                      variant="outline"
+                      className="flex-1 h-10 text-base"
+                    >
+                      <FileText className="w-4 h-4 mr-2" />
+                      View
+                    </Button>
+                    <Button
+                      onClick={() => handleDownloadReport('patient')}
+                      disabled={isDownloading}
+                      className="flex-1 h-10 text-base"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Download PDF
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Physician Report */}
+                <div className="border-2 border-border rounded-xl p-4">
+                  <h3 className="font-semibold text-lg text-foreground mb-2">Physician Report</h3>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Detailed medical report with SOAP format and ICD-10 codes
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => handleViewReport('physician')}
+                      disabled={isDownloading}
+                      variant="outline"
+                      className="flex-1 h-10 text-base"
+                    >
+                      <FileText className="w-4 h-4 mr-2" />
+                      View
+                    </Button>
+                    <Button
+                      onClick={() => handleDownloadReport('physician')}
+                      disabled={isDownloading}
+                      className="flex-1 h-10 text-base"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Download PDF
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <Button
+                onClick={() => setShowReportMenu(false)}
+                variant="ghost"
+                className="w-full mt-4 h-10 text-base"
+              >
+                Close
+              </Button>
+
+              {isDownloading && (
+                <div className="absolute inset-0 bg-background/80 rounded-2xl flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                    <p className="text-foreground font-semibold">Generating report...</p>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="flex-shrink-0 bg-card border-b-2 border-border p-3">
         <AiAvatar isListening={isListening} isSpeaking={currentlyPlaying !== null} />
       </div>
@@ -350,6 +596,15 @@ export function ConsultationScreen({ userName }: ConsultationScreenProps) {
         onAnalysisComplete={handleAnalysisComplete}
         consultationId={consultationId}
       />
+
+      {consultationId && (
+        <ReportViewer
+          consultationId={consultationId}
+          reportType={viewingReportType}
+          isOpen={showReportViewer}
+          onClose={() => setShowReportViewer(false)}
+        />
+      )}
     </div>
   )
 }
