@@ -235,18 +235,49 @@ class BackendAPI {
   async analyzeImage(
     request: ImageAnalysisRequest
   ): Promise<ApiResponse<ImageAnalysisResponse>> {
-    const formData = new FormData()
-    formData.append('image', request.image)
+    // Convert image file to base64
+    const imageBase64 = await this.fileToBase64(request.image)
 
-    if (request.consultation_id) {
-      formData.append('consultation_id', request.consultation_id)
+    const payload = {
+      consultation_id: request.consultation_id,
+      image_base64: imageBase64,
+      body_location: {
+        primary: request.body_location || 'unknown',
+        specific: null
+      }
     }
 
-    if (request.body_location) {
-      formData.append('body_location', request.body_location)
+    return this.postRequest<ImageAnalysisResponse>('/analyze/image', payload)
+  }
+
+  // Helper method to convert File/Blob to base64
+  private async fileToBase64(file: File | Blob): Promise<string> {
+    if (!file) {
+      throw new Error('No file provided to fileToBase64')
     }
 
-    return this.uploadRequest<ImageAnalysisResponse>('/analyze/image', formData)
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        const result = reader.result as string
+        if (!result) {
+          reject(new Error('FileReader returned empty result'))
+          return
+        }
+        // Remove the data URL prefix (e.g., "data:image/jpeg;base64,")
+        const base64 = result.split(',')[1]
+        if (!base64) {
+          reject(new Error('Failed to extract base64 from data URL'))
+          return
+        }
+        resolve(base64)
+      }
+      reader.onerror = (error) => {
+        console.error('FileReader error:', error)
+        reject(error)
+      }
+      reader.readAsDataURL(file)
+    })
   }
 
   async findSimilarCases(

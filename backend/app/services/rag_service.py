@@ -199,14 +199,17 @@ class RAGService:
             image_embedding = await self.generate_image_embedding(image_base64)
 
             try:
-                search_results = self.client.search(
+                # Note: Collection uses unnamed default vector, not named vectors
+                search_results = self.client.query_points(
                     collection_name=self.collection_name,
-                    query_vector=("image", image_embedding),
+                    query=image_embedding,
                     limit=top_k,
                     with_payload=True
-                )
+                ).points
 
+                print(f"[RAGService] Image search returned {len(search_results)} results")
                 for hit in search_results:
+                    print(f"[RAGService] Result: {hit.payload.get('condition')} (score: {hit.score:.3f})")
                     results.append(SimilarCase(
                         case_id=str(hit.id),
                         condition=hit.payload.get("condition", "Unknown"),
@@ -217,7 +220,7 @@ class RAGService:
                         key_features=hit.payload.get("features", [])
                     ))
             except Exception as e:
-                print(f"Image retrieval error: {e}")
+                print(f"[RAGService] Image retrieval error: {e}")
 
         # Text-based retrieval
         if symptoms or body_location:
@@ -230,12 +233,13 @@ class RAGService:
                 text_embedding = await self.generate_text_embedding(query_text)
 
                 try:
-                    text_results = self.client.search(
+                    # Note: Collection uses unnamed default vector, not named vectors
+                    text_results = self.client.query_points(
                         collection_name=self.collection_name,
-                        query_vector=("text", text_embedding),
+                        query=text_embedding,
                         limit=top_k,
                         with_payload=True
-                    )
+                    ).points
 
                     for hit in text_results:
                         # Check if already in results (from image search)

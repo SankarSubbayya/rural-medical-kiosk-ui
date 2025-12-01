@@ -277,6 +277,16 @@ class SOAPConsultation(BaseModel):
     consent_given: bool = Field(default=False)
     consent_timestamp: Optional[datetime] = None
     submitted_to_facility: bool = Field(default=False)
+
+    # AI Analysis Results
+    medgemma_analysis: Optional[dict] = Field(
+        default=None,
+        description="MedGemma image analysis results with predictions and visual description"
+    )
+    qdrant_similar_cases: Optional[list] = Field(
+        default=None,
+        description="Similar cases from Qdrant vector database"
+    )
     facility_case_id: Optional[str] = None
 
     class Config:

@@ -39,6 +39,15 @@ export function CameraCapture({ isOpen, onClose, onCapture, onAnalysisComplete, 
   const startCamera = async () => {
     try {
       setCameraError(null)
+
+      // Check if mediaDevices API is available
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setCameraError(
+          "Camera not available. This requires HTTPS or localhost access. Please upload a photo instead."
+        )
+        return
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: "environment", // Prefer back camera

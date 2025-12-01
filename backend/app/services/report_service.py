@@ -227,10 +227,44 @@ class ReportService:
         if assess.urgency_reasoning:
             sections.append(f"Urgency Rationale: {assess.urgency_reasoning}")
 
+        # MedGemma Image Analysis Results (if available)
+        if hasattr(consultation, 'medgemma_analysis') and consultation.medgemma_analysis:
+            sections.append("\n** MedGemma AI Image Analysis **")
+            analysis = consultation.medgemma_analysis
+
+            if analysis.get('predictions'):
+                sections.append("AI Model Predictions:")
+                for i, pred in enumerate(analysis['predictions'], 1):
+                    sections.append(
+                        f"  {i}. {pred.get('condition', 'Unknown')} "
+                        f"(Confidence: {pred.get('confidence', 0) * 100:.0f}%, "
+                        f"ICD-10: {pred.get('icd_code', 'N/A')})"
+                    )
+                    if pred.get('reasoning'):
+                        sections.append(f"     Reasoning: {pred['reasoning']}")
+                    if pred.get('urgency_level'):
+                        sections.append(f"     Urgency: {pred['urgency_level']}")
+                    sections.append("")
+
+            if analysis.get('visual_description'):
+                sections.append(f"Visual Description: {analysis['visual_description']}")
+
+            if analysis.get('embedding_model'):
+                sections.append(f"Analysis Model: {analysis['embedding_model']}")
+            sections.append("")
+
         if assess.rag_sources:
-            sections.append("\nReference Cases (from database):")
-            for source in assess.rag_sources[:3]:
-                sections.append(f"  - {source.condition} (similarity: {source.similarity_score:.2f})")
+            sections.append("** Similar Historical Cases (Qdrant Vector Database) **")
+            for i, source in enumerate(assess.rag_sources[:3], 1):
+                sections.append(
+                    f"  {i}. {source.condition} "
+                    f"(Similarity: {source.similarity_score:.1%}, "
+                    f"ICD-10: {source.icd_code if hasattr(source, 'icd_code') else 'N/A'})"
+                )
+                if hasattr(source, 'key_features') and source.key_features:
+                    features = source.key_features if isinstance(source.key_features, list) else [source.key_features]
+                    sections.append(f"     Features: {', '.join(str(f) for f in features[:3])}")
+            sections.append("")
 
         sections.append(f"\nOverall Confidence: {assess.confidence_overall * 100:.0f}%")
         sections.append(f"Professional Consultation Required: {'Yes' if assess.requires_professional else 'No'}")

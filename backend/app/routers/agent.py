@@ -7,6 +7,7 @@ FastAPI endpoints for SOAP Orchestrator Agent.
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
+# Use Google Gemini ADK agent with MedGemma
 from agent.soap_agent import create_soap_agent, SOAPAgent
 
 router = APIRouter(prefix="/agent", tags=["agent"])
@@ -51,7 +52,13 @@ async def process_agent_message(request: AgentMessageRequest):
         if request.consultation_id and request.consultation_id in _agents:
             agent = _agents[request.consultation_id]
         else:
-            agent = create_soap_agent()
+            # Use Gemini 2.0 Flash Exp for fast medical reasoning with MedGemma
+            # Note: Gemini 3.0 not yet available, using latest working model
+            # Pass consultation_id if provided to maintain session continuity
+            agent = create_soap_agent(
+                model="gemini-2.0-flash-exp",
+                consultation_id=request.consultation_id
+            )
             _agents[agent.state.consultation_id] = agent
 
         # Process message
@@ -123,6 +130,7 @@ async def agent_health_check():
     return {
         "status": "healthy",
         "agent_type": "SOAP Orchestrator",
+        "model": "gemini-2.5-flash-001",
         "active_consultations": len(_agents),
         "tools_count": 7
     }
